@@ -9,6 +9,9 @@ LIKED_COUNT_THRESHOLD = 50
 
 
 class ZennArticleService(IArticleService):
+    def __init__(self, article_type: str) -> None:
+        self._article_type = article_type
+
     async def get_articles(self) -> list[Article]:
         async with httpx.AsyncClient() as client:
             response = await client.get(
@@ -20,7 +23,7 @@ class ZennArticleService(IArticleService):
 
         articles: list[Article] = []
         for item in data.get("articles", []):
-            if item.get("article_type") not in ("tech", "idea"):
+            if item.get("article_type") != self._article_type:
                 continue
             if item.get("liked_count", 0) < LIKED_COUNT_THRESHOLD:
                 continue

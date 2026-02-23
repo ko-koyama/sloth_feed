@@ -23,18 +23,16 @@ def _make_item(
 
 
 @respx.mock
-async def test_returns_qualifying_articles():
-    """tech/idea かつ liked_count>=50 の記事のみ返る"""
+async def test_returns_tech_articles():
+    """article_type=tech かつ liked_count>=50 の記事のみ返る"""
     respx.get(ZENN_API_URL).mock(
         return_value=httpx.Response(
             200,
             json={
                 "articles": [
-                    _make_item(title="Tech記事", article_type="tech", liked_count=80),
-                    _make_item(title="Idea記事", article_type="idea", liked_count=60),
-                    _make_item(
-                        title="除外:scraps", article_type="scraps", liked_count=200
-                    ),
+                    _make_item(title="Tech記事A", article_type="tech", liked_count=80),
+                    _make_item(title="Tech記事B", article_type="tech", liked_count=60),
+                    _make_item(title="除外:idea", article_type="idea", liked_count=200),
                     _make_item(
                         title="除外:少ない", article_type="tech", liked_count=10
                     ),
@@ -43,20 +41,46 @@ async def test_returns_qualifying_articles():
         )
     )
 
-    articles = await ZennArticleService().get_articles()
+    articles = await ZennArticleService("tech").get_articles()
 
     assert len(articles) == 2
     assert articles[0] == Article(
-        title="Tech記事", url="https://zenn.dev/user/articles/1"
+        title="Tech記事A", url="https://zenn.dev/user/articles/1"
     )
     assert articles[1] == Article(
-        title="Idea記事", url="https://zenn.dev/user/articles/1"
+        title="Tech記事B", url="https://zenn.dev/user/articles/1"
     )
 
 
 @respx.mock
-async def test_filters_out_wrong_type():
-    """tech/idea 以外の article_type は除外される"""
+async def test_returns_idea_articles():
+    """article_type=idea かつ liked_count>=50 の記事のみ返る"""
+    respx.get(ZENN_API_URL).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "articles": [
+                    _make_item(title="Idea記事A", article_type="idea", liked_count=80),
+                    _make_item(title="除外:tech", article_type="tech", liked_count=200),
+                    _make_item(
+                        title="除外:少ない", article_type="idea", liked_count=10
+                    ),
+                ]
+            },
+        )
+    )
+
+    articles = await ZennArticleService("idea").get_articles()
+
+    assert len(articles) == 1
+    assert articles[0] == Article(
+        title="Idea記事A", url="https://zenn.dev/user/articles/1"
+    )
+
+
+@respx.mock
+async def test_filters_out_other_types():
+    """指定した article_type 以外は除外される"""
     respx.get(ZENN_API_URL).mock(
         return_value=httpx.Response(
             200,
@@ -69,7 +93,7 @@ async def test_filters_out_wrong_type():
         )
     )
 
-    articles = await ZennArticleService().get_articles()
+    articles = await ZennArticleService("tech").get_articles()
 
     assert articles == []
 
@@ -89,7 +113,7 @@ async def test_filters_out_low_liked_count():
         )
     )
 
-    articles = await ZennArticleService().get_articles()
+    articles = await ZennArticleService("tech").get_articles()
 
     assert len(articles) == 1
     assert articles[0].title == "境界ちょうど"
@@ -102,7 +126,7 @@ async def test_empty_response():
         return_value=httpx.Response(200, json={"articles": []})
     )
 
-    articles = await ZennArticleService().get_articles()
+    articles = await ZennArticleService("tech").get_articles()
 
     assert articles == []
 
@@ -115,4 +139,4 @@ async def test_http_error_raises():
     import pytest
 
     with pytest.raises(httpx.HTTPStatusError):
-        await ZennArticleService().get_articles()
+        await ZennArticleService("tech").get_articles()

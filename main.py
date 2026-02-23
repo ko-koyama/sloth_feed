@@ -26,9 +26,16 @@ intents = discord.Intents.default()
 bot = discord.Client(intents=intents)
 
 
-def _build_controller() -> FeedController:
-    article_service = ZennArticleService()
-    channel_id = int(os.environ["DISCORD_CHANNEL_ID_ZENN"])
+def _build_zenn_tech_controller() -> FeedController:
+    article_service = ZennArticleService("tech")
+    channel_id = int(os.environ["DISCORD_CHANNEL_ID_ZENN_TECH"])
+    feed_service = DiscordFeedService(bot, channel_id)
+    return FeedController(article_service, feed_service)
+
+
+def _build_zenn_idea_controller() -> FeedController:
+    article_service = ZennArticleService("idea")
+    channel_id = int(os.environ["DISCORD_CHANNEL_ID_ZENN_IDEA"])
     feed_service = DiscordFeedService(bot, channel_id)
     return FeedController(article_service, feed_service)
 
@@ -36,8 +43,10 @@ def _build_controller() -> FeedController:
 @tasks.loop(time=SCHEDULE_TIMES)
 async def scheduled_feed_task() -> None:
     logger.info("Scheduled feed task triggered.")
-    controller = _build_controller()
-    await controller.run()
+    zenn_tech_controller = _build_zenn_tech_controller()
+    await zenn_tech_controller.run()
+    zenn_idea_controller = _build_zenn_idea_controller()
+    await zenn_idea_controller.run()
 
 
 @bot.event
