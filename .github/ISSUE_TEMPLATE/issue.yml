@@ -1,0 +1,17 @@
+name: Issue
+description: 汎用的なIssueテンプレート
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: 概要
+      description: やりたいこと・起きている問題を簡潔に
+    validations:
+      required: true
+  - type: textarea
+    id: detail
+    attributes:
+      label: 詳細
+      description: 補足情報があれば
+    validations:
+      required: false
