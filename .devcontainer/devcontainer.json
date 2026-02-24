@@ -15,7 +15,7 @@
     "source=${localEnv:HOME}/.config/gh,target=/home/vscode/.config/gh,type=bind",
     "source=${localEnv:HOME}/.aws,target=/home/vscode/.aws,type=bind"
   ],
-  "postCreateCommand": "pip install -r requirements.txt -r requirements-dev.txt",
+  "postCreateCommand": "pip install -r requirements.txt -r requirements-dev.txt && playwright install chromium && playwright install-deps chromium",
   "customizations": {
     "vscode": {
       "extensions": [
