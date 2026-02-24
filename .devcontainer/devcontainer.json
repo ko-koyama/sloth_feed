@@ -4,13 +4,16 @@
   "features": {
     "ghcr.io/devcontainers/features/node:1": {},
     "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {},
-    "ghcr.io/devcontainers/features/github-cli:1": {}
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/aws-cli:1": {},
+    "ghcr.io/devcontainers/features/terraform:1": {}
   },
   "remoteUser": "vscode",
   "mounts": [
     "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind",
     "source=${localEnv:HOME}/.claude.json,target=/home/vscode/.claude.json,type=bind",
-    "source=${localEnv:HOME}/.config/gh,target=/home/vscode/.config/gh,type=bind"
+    "source=${localEnv:HOME}/.config/gh,target=/home/vscode/.config/gh,type=bind",
+    "source=${localEnv:HOME}/.aws,target=/home/vscode/.aws,type=bind"
   ],
   "postCreateCommand": "pip install -r requirements.txt -r requirements-dev.txt",
   "customizations": {
