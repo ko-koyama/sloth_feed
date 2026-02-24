@@ -4,6 +4,24 @@ from interface.i_feed_service import IFeedService
 from model.article import Article
 
 THREAD_NAME_MAX_LENGTH = 100
+CONTENT_MAX_LENGTH = 2000
+
+
+def _build_content(article: Article) -> str:
+    parts = [article.url]
+
+    if article.summary_result:
+        parts.append("\n**要約**")
+        for item in article.summary_result.summary:
+            parts.append(f"- {item}")
+
+        if article.summary_result.glossary:
+            parts.append("\n**用語解説**")
+            for entry in article.summary_result.glossary:
+                parts.append(f"- **{entry['term']}**: {entry['explanation']}")
+
+    content = "\n".join(parts)
+    return content[:CONTENT_MAX_LENGTH]
 
 
 class DiscordFeedService(IFeedService):
@@ -19,5 +37,5 @@ class DiscordFeedService(IFeedService):
         for article in articles:
             await channel.create_thread(
                 name=article.title[:THREAD_NAME_MAX_LENGTH],
-                content=article.url,
+                content=_build_content(article),
             )

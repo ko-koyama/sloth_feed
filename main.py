@@ -11,8 +11,10 @@ from repository.dynamodb_posted_article_repository import (
     DynamodbPostedArticleRepository,
 )
 from service.article_dedup_service import ArticleDedupService
+from service.bedrock_summary_service import BedrockSummaryService
 from service.discord_feed_service import DiscordFeedService
 from service.zenn_article_service import ZennArticleService
+from service.zenn_scraping_service import ZennScrapingService
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,7 +38,11 @@ def _build_zenn_tech_controller() -> FeedController:
     feed_service = DiscordFeedService(bot, channel_id)
     repo = DynamodbPostedArticleRepository("zenn_tech")
     dedup_service = ArticleDedupService(repo)
-    return FeedController(article_service, feed_service, dedup_service)
+    scraping_service = ZennScrapingService()
+    summary_service = BedrockSummaryService()
+    return FeedController(
+        article_service, feed_service, dedup_service, scraping_service, summary_service
+    )
 
 
 def _build_zenn_idea_controller() -> FeedController:
@@ -45,7 +51,11 @@ def _build_zenn_idea_controller() -> FeedController:
     feed_service = DiscordFeedService(bot, channel_id)
     repo = DynamodbPostedArticleRepository("zenn_idea")
     dedup_service = ArticleDedupService(repo)
-    return FeedController(article_service, feed_service, dedup_service)
+    scraping_service = ZennScrapingService()
+    summary_service = BedrockSummaryService()
+    return FeedController(
+        article_service, feed_service, dedup_service, scraping_service, summary_service
+    )
 
 
 @tasks.loop(time=SCHEDULE_TIMES)

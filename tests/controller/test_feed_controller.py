@@ -4,6 +4,7 @@ import pytest
 
 from controller.feed_controller import FeedController
 from model.article import Article
+from model.summary_result import SummaryResult
 
 
 @pytest.fixture
@@ -33,12 +34,53 @@ def mock_dedup_service(articles):
     return mock
 
 
+@pytest.fixture
+def mock_scraping_service():
+    mock = AsyncMock()
+    mock.fetch_body.return_value = "本文テキスト"
+    return mock
+
+
+@pytest.fixture
+def mock_summary_service():
+    mock = AsyncMock()
+    mock.summarize.return_value = SummaryResult(
+        summary=["ポイント1", "ポイント2"], glossary=None
+    )
+    return mock
+
+
+def _make_controller(
+    article_service,
+    feed_service,
+    dedup_service,
+    scraping_service,
+    summary_service,
+) -> FeedController:
+    return FeedController(
+        article_service,
+        feed_service,
+        dedup_service,
+        scraping_service,
+        summary_service,
+    )
+
+
 async def test_run_passes_articles_to_feed_service(
-    mock_article_service, mock_feed_service, mock_dedup_service, articles
+    mock_article_service,
+    mock_feed_service,
+    mock_dedup_service,
+    mock_scraping_service,
+    mock_summary_service,
+    articles,
 ):
     """get_articles の戻り値が dedup を経て post_articles に渡される"""
-    controller = FeedController(
-        mock_article_service, mock_feed_service, mock_dedup_service
+    controller = _make_controller(
+        mock_article_service,
+        mock_feed_service,
+        mock_dedup_service,
+        mock_scraping_service,
+        mock_summary_service,
     )
     await controller.run()
 
@@ -48,14 +90,21 @@ async def test_run_passes_articles_to_feed_service(
 
 
 async def test_run_propagates_article_service_error(
-    mock_feed_service, mock_dedup_service
+    mock_feed_service,
+    mock_dedup_service,
+    mock_scraping_service,
+    mock_summary_service,
 ):
     """get_articles 例外時、post_articles は呼ばれず例外が伝播する"""
     mock_article_service = AsyncMock()
     mock_article_service.get_articles.side_effect = RuntimeError("API error")
 
-    controller = FeedController(
-        mock_article_service, mock_feed_service, mock_dedup_service
+    controller = _make_controller(
+        mock_article_service,
+        mock_feed_service,
+        mock_dedup_service,
+        mock_scraping_service,
+        mock_summary_service,
     )
 
     with pytest.raises(RuntimeError, match="API error"):
@@ -65,15 +114,23 @@ async def test_run_propagates_article_service_error(
 
 
 async def test_run_posts_only_dedup_articles(
-    mock_article_service, mock_feed_service, articles
+    mock_article_service,
+    mock_feed_service,
+    mock_scraping_service,
+    mock_summary_service,
+    articles,
 ):
     """dedup後の記事のみpostされる"""
     new_articles = [articles[0]]
     mock_dedup_service = AsyncMock()
     mock_dedup_service.filter_unposted.return_value = new_articles
 
-    controller = FeedController(
-        mock_article_service, mock_feed_service, mock_dedup_service
+    controller = _make_controller(
+        mock_article_service,
+        mock_feed_service,
+        mock_dedup_service,
+        mock_scraping_service,
+        mock_summary_service,
     )
     await controller.run()
 
@@ -81,14 +138,21 @@ async def test_run_posts_only_dedup_articles(
 
 
 async def test_run_skips_post_when_no_new_articles(
-    mock_article_service, mock_feed_service
+    mock_article_service,
+    mock_feed_service,
+    mock_scraping_service,
+    mock_summary_service,
 ):
     """新規記事なし→post未実行"""
     mock_dedup_service = AsyncMock()
     mock_dedup_service.filter_unposted.return_value = []
 
-    controller = FeedController(
-        mock_article_service, mock_feed_service, mock_dedup_service
+    controller = _make_controller(
+        mock_article_service,
+        mock_feed_service,
+        mock_dedup_service,
+        mock_scraping_service,
+        mock_summary_service,
     )
     await controller.run()
 
@@ -96,11 +160,20 @@ async def test_run_skips_post_when_no_new_articles(
 
 
 async def test_run_marks_as_posted_after_post(
-    mock_article_service, mock_feed_service, mock_dedup_service, articles
+    mock_article_service,
+    mock_feed_service,
+    mock_dedup_service,
+    mock_scraping_service,
+    mock_summary_service,
+    articles,
 ):
     """post後にmark_as_postedが呼ばれる"""
-    controller = FeedController(
-        mock_article_service, mock_feed_service, mock_dedup_service
+    controller = _make_controller(
+        mock_article_service,
+        mock_feed_service,
+        mock_dedup_service,
+        mock_scraping_service,
+        mock_summary_service,
     )
     await controller.run()
 
@@ -109,17 +182,101 @@ async def test_run_marks_as_posted_after_post(
 
 
 async def test_run_does_not_mark_posted_on_post_failure(
-    mock_article_service, mock_dedup_service, articles
+    mock_article_service,
+    mock_dedup_service,
+    mock_scraping_service,
+    mock_summary_service,
+    articles,
 ):
     """post失敗→mark_as_posted未実行"""
     mock_feed_service = AsyncMock()
     mock_feed_service.post_articles.side_effect = RuntimeError("Discord error")
 
-    controller = FeedController(
-        mock_article_service, mock_feed_service, mock_dedup_service
+    controller = _make_controller(
+        mock_article_service,
+        mock_feed_service,
+        mock_dedup_service,
+        mock_scraping_service,
+        mock_summary_service,
     )
 
     with pytest.raises(RuntimeError, match="Discord error"):
         await controller.run()
 
     mock_dedup_service.mark_as_posted.assert_not_awaited()
+
+
+async def test_run_sets_summary_on_article(
+    mock_article_service,
+    mock_feed_service,
+    mock_dedup_service,
+    mock_scraping_service,
+    mock_summary_service,
+    articles,
+):
+    """要約成功時、article.summary_result に SummaryResult が代入される"""
+    expected = SummaryResult(
+        summary=["要点A", "要点B"],
+        glossary=[{"term": "用語", "explanation": "説明"}],
+    )
+    mock_summary_service.summarize.return_value = expected
+    controller = _make_controller(
+        mock_article_service,
+        mock_feed_service,
+        mock_dedup_service,
+        mock_scraping_service,
+        mock_summary_service,
+    )
+    await controller.run()
+
+    for article in articles:
+        assert article.summary_result == expected
+
+
+async def test_run_continues_on_summary_failure(
+    mock_article_service,
+    mock_feed_service,
+    mock_dedup_service,
+    mock_scraping_service,
+    articles,
+):
+    """個別記事の要約失敗→その記事は summary_result=None のまま投稿を継続する"""
+    mock_summary_service = AsyncMock()
+    mock_summary_service.summarize.side_effect = RuntimeError("Bedrock error")
+
+    controller = _make_controller(
+        mock_article_service,
+        mock_feed_service,
+        mock_dedup_service,
+        mock_scraping_service,
+        mock_summary_service,
+    )
+    await controller.run()
+
+    # 例外を再送出せず post_articles が呼ばれる
+    mock_feed_service.post_articles.assert_awaited_once_with(articles)
+    for article in articles:
+        assert article.summary_result is None
+
+
+async def test_run_skips_summary_when_no_new_articles(
+    mock_article_service,
+    mock_feed_service,
+    mock_scraping_service,
+    mock_summary_service,
+):
+    """新規記事なし→スクレイピング・要約は実行されない"""
+    mock_dedup_service = AsyncMock()
+    mock_dedup_service.filter_unposted.return_value = []
+
+    controller = _make_controller(
+        mock_article_service,
+        mock_feed_service,
+        mock_dedup_service,
+        mock_scraping_service,
+        mock_summary_service,
+    )
+    await controller.run()
+
+    mock_scraping_service.fetch_body.assert_not_awaited()
+    mock_summary_service.summarize.assert_not_awaited()

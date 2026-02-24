@@ -3,7 +3,8 @@ from unittest.mock import AsyncMock, MagicMock
 import discord
 
 from model.article import Article
-from service.discord_feed_service import DiscordFeedService
+from model.summary_result import SummaryResult
+from service.discord_feed_service import CONTENT_MAX_LENGTH, DiscordFeedService
 
 
 _UNSET = object()
@@ -67,3 +68,71 @@ async def test_falls_back_to_fetch_channel():
     bot.get_channel.assert_called_once_with(123)
     bot.fetch_channel.assert_awaited_once_with(123)
     channel.create_thread.assert_awaited_once()
+
+
+async def test_content_includes_summary():
+    """summary_result がある場合、content に箇条書きが含まれる"""
+    service, _, channel = _make_service()
+    article = Article(
+        title="記事A",
+        url="https://zenn.dev/a",
+        summary_result=SummaryResult(summary=["ポイント1", "ポイント2"], glossary=None),
+    )
+
+    await service.post_articles([article])
+
+    call_kwargs = channel.create_thread.call_args.kwargs
+    content = call_kwargs["content"]
+    assert "https://zenn.dev/a" in content
+    assert "- ポイント1" in content
+    assert "- ポイント2" in content
+    assert "**要約**" in content
+
+
+async def test_content_includes_glossary():
+    """glossary がある場合、content に用語解説が含まれる"""
+    service, _, channel = _make_service()
+    article = Article(
+        title="記事A",
+        url="https://zenn.dev/a",
+        summary_result=SummaryResult(
+            summary=["ポイント1"],
+            glossary=[
+                {"term": "API", "explanation": "Application Programming Interface"}
+            ],
+        ),
+    )
+
+    await service.post_articles([article])
+
+    call_kwargs = channel.create_thread.call_args.kwargs
+    content = call_kwargs["content"]
+    assert "**用語解説**" in content
+    assert "**API**" in content
+    assert "Application Programming Interface" in content
+
+
+async def test_content_truncated_to_max_length():
+    """content が上限を超える場合は 2000 文字に切り詰める"""
+    service, _, channel = _make_service()
+    article = Article(
+        title="記事",
+        url="https://zenn.dev/a",
+        summary_result=SummaryResult(summary=["x" * 500] * 5, glossary=None),
+    )
+
+    await service.post_articles([article])
+
+    call_kwargs = channel.create_thread.call_args.kwargs
+    assert len(call_kwargs["content"]) <= CONTENT_MAX_LENGTH
+
+
+async def test_content_without_summary_is_just_url():
+    """summary_result がない場合、content は URL のみ"""
+    service, _, channel = _make_service()
+    article = Article(title="記事", url="https://zenn.dev/a")
+
+    await service.post_articles([article])
+
+    call_kwargs = channel.create_thread.call_args.kwargs
+    assert call_kwargs["content"] == "https://zenn.dev/a"
