@@ -4,8 +4,9 @@
 ## アーキテクチャ
 * オニオンアーキテクチャベースの層構造を採用する
     * Controller → IService(Interface層) ← Service → IRepository(Interface層) ← Repository
-* ControllerからRepositoryを直接呼ばない。必ずServiceを経由する
+* ControllerからRepositoryを直接呼ばない、必ずServiceを経由する
 * すべてのService・Repositoryに対応するInterfaceを原則作成する
+    * ただし、外部依存がなく実装の変化が見込まれないServiceは省略可
 
 ## ディレクトリ構成
 ```
@@ -15,7 +16,9 @@ project_root/
 ├── service/                      # ビジネスロジック、Interface層の抽象を実装
 ├── repository/                   # データソース(DB,S3,外部API等)との入出力、Interface層の抽象を実装
 ├── interface/                    # Service・Repositoryの抽象(ABC)
-└── model/                        # エンティティ・値オブジェクト(dataclass)、必要になった時点で追加
+├── model/                        # エンティティ・値オブジェクト(dataclass)、必要になった時点で追加
+├── infra/                        # インフラ構成(Terraform等)
+└── tests/                        # 各レイヤーに対応するテスト
 ```
 
 ## 命名規則
@@ -30,6 +33,7 @@ project_root/
 ## ブランチ戦略
 * GitHubフローベース
 * mainブランチは常にデプロイ可能な状態を保つ
+* 作業開始時には、必ず作業用のブランチを切る
 
 ### ブランチ命名規則
 * `プレフィックス/簡潔な説明`(例: `feature/add-search`)
@@ -49,3 +53,6 @@ project_root/
     * ♻️ リファクタ
     * 📝 ドキュメント
     * 🔧 その他の変更
+
+### PR
+* PRは`.github/PULL_REQUEST_TEMPLATE.md`のフォーマットに準拠する
