@@ -1,3 +1,4 @@
+boto3==1.37.26
 discord.py==2.6.4
 httpx==0.28.1
 python-dotenv==1.2.1

@@ -7,6 +7,10 @@ from discord.ext import tasks
 from dotenv import load_dotenv
 
 from controller.feed_controller import FeedController
+from repository.dynamodb_posted_article_repository import (
+    DynamodbPostedArticleRepository,
+)
+from service.article_dedup_service import ArticleDedupService
 from service.discord_feed_service import DiscordFeedService
 from service.zenn_article_service import ZennArticleService
 
@@ -30,14 +34,18 @@ def _build_zenn_tech_controller() -> FeedController:
     article_service = ZennArticleService("tech")
     channel_id = int(os.environ["DISCORD_CHANNEL_ID_ZENN_TECH"])
     feed_service = DiscordFeedService(bot, channel_id)
-    return FeedController(article_service, feed_service)
+    repo = DynamodbPostedArticleRepository("zenn_tech")
+    dedup_service = ArticleDedupService(repo)
+    return FeedController(article_service, feed_service, dedup_service)
 
 
 def _build_zenn_idea_controller() -> FeedController:
     article_service = ZennArticleService("idea")
     channel_id = int(os.environ["DISCORD_CHANNEL_ID_ZENN_IDEA"])
     feed_service = DiscordFeedService(bot, channel_id)
-    return FeedController(article_service, feed_service)
+    repo = DynamodbPostedArticleRepository("zenn_idea")
+    dedup_service = ArticleDedupService(repo)
+    return FeedController(article_service, feed_service, dedup_service)
 
 
 @tasks.loop(time=SCHEDULE_TIMES)
